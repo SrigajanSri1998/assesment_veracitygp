@@ -1,59 +1,48 @@
-# Track A Submission — Vanilla PHP + PDO Task Management API
+# Inventory & Order Management Service
 
-This repository now contains a **Track A** implementation from the assessment prompt:
+FastAPI + SQLAlchemy backend for products and orders with transactional stock updates.
 
-- Login endpoint (JWT bearer token)
-- Task CRUD endpoints
-- Soft deletes (`deleted_at`)
-- Filtering (`status`, `q`)
-- Pagination (`page`, `limit`)
-- Basic browser-based frontend
+## Features
+- Product management with non-negative stock and price constraints.
+- Order creation with multiple items, stock checks, and atomic stock deduction.
+- Order status updates with transition validation (`Pending -> Shipped|Cancelled`).
+- PostgreSQL schema migrations using Alembic.
+- Dockerized app + database via Docker Compose.
+- Pytest integration tests for order creation scenarios.
 
-Implementation lives in: `track_a_php/`
-
-## Assumptions
-
-- Used **Vanilla PHP + PDO** with SQLite by default for zero-friction local setup.
-- MySQL can be used by updating `DB_DSN`, `DB_USER`, and `DB_PASS` in `.env`.
-- A default user is auto-seeded on first boot from env values.
-
-## Setup
-
+## Run with Docker
 ```bash
-cd track_a_php
-cp .env.example .env
-php -S 0.0.0.0:8080 -t public
+docker-compose up --build
 ```
 
-Open:
+API: `http://localhost:8000`
 
-- App UI: `http://localhost:8080/`
-- API base: `http://localhost:8080/api`
+## Run locally
+1. Create a virtual environment and install deps:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. Set database URL if needed:
+   ```bash
+   export DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/inventory
+   ```
+3. Run migrations:
+   ```bash
+   alembic upgrade head
+   ```
+4. Start app:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
-Default login (from `.env.example`):
+## Run tests
+```bash
+pytest -q
+```
 
-- Email: `admin@example.com`
-- Password: `password123`
-
-## Environment Variables
-
-See `.env.example`:
-
-- `DB_DSN`
-- `DB_USER`
-- `DB_PASS`
-- `JWT_SECRET`
-- `DEFAULT_USER_EMAIL`
-- `DEFAULT_USER_PASSWORD`
-
-## API Endpoints
-
-- `POST /api/login`
-- `GET /api/tasks?page=1&limit=10&status=todo&q=search`
-- `POST /api/tasks`
-- `PUT /api/tasks/{id}`
-- `DELETE /api/tasks/{id}` (soft delete)
-
-## Demo Video
-
-A short demo video should be recorded by the submitter and added to the repository/release according to the assessment requirement.
+## Design Notes / Trade-offs
+- `SELECT ... FOR UPDATE` is used during order creation and order status updates to reduce race conditions under concurrent requests.
+- `OrderItem.price_at_order` stores a historical price snapshot to prevent later product price changes from altering old orders.
+- Tests run on in-memory SQLite for speed; production uses PostgreSQL. The transactional logic is still validated at the API level, but DB-specific locking behavior is strongest in PostgreSQL.
