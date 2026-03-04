@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 720px; }
+    input, button, select { padding: .5rem; margin: .2rem; }
+    .task { border: 1px solid #ddd; padding: .7rem; margin: .4rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Task Manager</h1>
+
+  <div>
+    <input id="email" placeholder="Email" value="admin@example.com" />
+    <input id="password" placeholder="Password" value="password123" type="password" />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <hr />
+
+  <div>
+    <input id="title" placeholder="Task title" />
+    <input id="description" placeholder="Description" />
+    <select id="status"><option>todo</option><option>in_progress</option><option>done</option></select>
+    <button onclick="createTask()">Add task</button>
+  </div>
+
+  <div>
+    <input id="search" placeholder="Search" />
+    <select id="filterStatus"><option value="">All</option><option>todo</option><option>in_progress</option><option>done</option></select>
+    <button onclick="fetchTasks()">Refresh</button>
+  </div>
+
+  <div id="tasks"></div>
+
+  <script>
+    const API = '/api';
+    const tokenKey = 'task-token';
+
+    async function login() {
+      const res = await fetch(`${API}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        })
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem(tokenKey, data.token);
+        fetchTasks();
+      } else {
+        alert(data.message || 'Login failed');
+      }
+    }
+
+    async function createTask() {
+      const token = localStorage.getItem(tokenKey);
+      const res = await fetch(`${API}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: document.getElementById('title').value,
+          description: document.getElementById('description').value,
+          status: document.getElementById('status').value,
+        })
+      });
+      if (res.ok) fetchTasks();
+    }
+
+    async function fetchTasks(page = 1) {
+      const token = localStorage.getItem(tokenKey);
+      const status = document.getElementById('filterStatus').value;
+      const q = document.getElementById('search').value;
+      const params = new URLSearchParams({ page, limit: 10 });
+      if (status) params.set('status', status);
+      if (q) params.set('q', q);
+
+      const res = await fetch(`${API}/tasks?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+      document.getElementById('tasks').innerHTML = (data.data || []).map(t => `
+        <div class="task">
+          <strong>${t.title}</strong> [${t.status}]<br />
+          ${t.description || ''}
+          <div><button onclick="removeTask(${t.id})">Delete</button></div>
+        </div>`).join('');
+    }
+
+    async function removeTask(id) {
+      const token = localStorage.getItem(tokenKey);
+      await fetch(`${API}/tasks/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      fetchTasks();
+    }
+  </script>
+</body>
+</html>
